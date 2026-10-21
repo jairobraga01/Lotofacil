@@ -8,7 +8,7 @@ Arquivos: `index.html` (app e histórico), `manifest.webmanifest`, `sw.js` (func
 
 **Netlify Drop (mais rápido):** entre em app.netlify.com/drop, arraste esta pasta `pwa` para a página e anote o endereço gerado. Crie uma conta gratuita para o site não expirar.
 
-**GitHub Pages:** crie um repositório, envie o conteúdo desta pasta para a raiz, abra Settings > Pages, escolha a branch principal e a pasta `/ (root)`. O endereço será `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/`.
+**GitHub Pages (automático):** no repositório, abra Settings > Pages e escolha Source: **GitHub Actions**. Cada push na `main` testa e publica esta pasta. O endereço será `https://jairobraga01.github.io/lotofacil/`. Em repositório privado, o GitHub Pages exige plano pago.
 
 ## Instalar
 
@@ -24,4 +24,4 @@ Aba **Dados** do app: cole linhas novas (`concurso,data,dezena,...`) ou escolha 
 
 ## Atualizar o app em si
 
-Ao publicar uma versão nova, mude `CACHE = 'lotofacil-v1'` em `sw.js` para `v2` (e assim por diante) para os aparelhos pegarem a versão nova.
+`npm run build` muda a versão do cache em `sw.js` sozinho a cada versão nova do app; os aparelhos pegam a atualização na visita seguinte.
