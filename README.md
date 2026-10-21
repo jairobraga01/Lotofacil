@@ -9,13 +9,13 @@ App pessoal para montar fechamentos da Lotofácil, conferir resultados e ver est
 - **Fechamentos salvos:** guarde com nome, compartilhe (WhatsApp ou menu do celular), baixe em CSV.
 - **Conferência:** confere um fechamento num concurso ou num intervalo de concursos, com prêmios, gasto e saldo.
 - **Estatísticas:** frequência das dezenas e análises do histórico.
-- **Dados:** histórico embutido; concursos novos entram pela aba Dados (CSV da Lotorama ou linhas coladas). O app avisa quando os dados estão desatualizados e aponta linhas inválidas, concursos repetidos ou faltando.
+- **Dados:** histórico embutido; concursos novos entram pela aba Dados, por arquivo CSV, TXT, Excel (.xlsx/.xls) ou LibreOffice Calc (.ods), como a planilha de resultados da Caixa ou o CSV da Lotorama, ou por linhas coladas. O app avisa quando os dados estão desatualizados e aponta linhas inválidas, concursos repetidos ou faltando.
 
 ## Estrutura
 
 | Pasta/arquivo | Conteúdo |
 |---|---|
-| `src/` | Código: `app.html` (interface), `fechamento.js`, `analise.js`, `dados.js` |
+| `src/` | Código: `app.html` (interface), `fechamento.js`, `analise.js`, `dados.js`, `planilha.js` (abre CSV/TXT/Excel/Calc sem biblioteca externa) |
 | `test/` | Testes das funções (`node --test`) |
 | `e2e/` | Testes no navegador (Playwright), no computador e no celular |
 | `.github/workflows/ci.yml` | Roda os testes a cada mudança e publica `pwa/` no GitHub Pages a cada push na `main` |
@@ -39,4 +39,4 @@ A cada push na `main`, o GitHub Actions testa e publica a pasta `pwa/` no GitHub
 
 ## Atualizar o histórico
 
-Baixe o CSV novo em lotorama.com.br, salve como `dados/lotofacil.csv` e rode `npm run build`. Sem rebuild, também dá para importar o CSV direto pela aba **Dados** do app.
+Baixe o CSV novo em lotorama.com.br, salve como `dados/lotofacil.csv` e rode `npm run build`. Sem rebuild, também dá para importar o arquivo (CSV, Excel ou Calc) direto pela aba **Dados** do app.

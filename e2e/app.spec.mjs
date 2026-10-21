@@ -69,11 +69,28 @@ test('cálculo grande não trava a tela e pode ser cancelado', async ({ page }) 
 test('importação mostra concursos novos e linhas com problema', async ({ page }) => {
   await page.getByRole('tab', { name: 'Dados' }).click();
   const ultimo = +(await page.locator('#situacao .tile b').nth(1).textContent());
+  await page.getByText('Colar resultados em texto').click();
   await page.locator('#colar').fill(`${ultimo + 1},01/10/2026,01,02,03,04,05,06,07,08,09,10,11,12,13,14,15\n${ultimo + 2},02/10/2026,01,01,02`);
   await page.getByRole('button', { name: 'Importar texto' }).click();
   await expect(page.locator('#impMsg')).toContainText('1 novos');
   await expect(page.locator('#impMsg')).toContainText('1 linha ignorada');
   await expect(page.locator('#base')).toContainText(`até o ${ultimo + 1}`);
+});
+
+test('importa planilhas do Excel e do LibreOffice e arquivos de texto', async ({ page }) => {
+  await page.getByRole('tab', { name: 'Dados' }).click();
+  for (const nome of ['pequena.xlsx', 'pequena.xls', 'pequena.ods']) {
+    await page.locator('#arquivo').setInputFiles(new URL(`../test/arquivos/${nome}`, import.meta.url).pathname);
+    await expect(page.locator('#impMsg')).toContainText(`${nome}: 40 concursos lidos, 0 novos`);
+    await expect(page.locator('#impMsg')).toContainText('Nada novo');
+  }
+  const ultimo = +(await page.locator('#situacao .tile b').nth(1).textContent());
+  const txt = `Concurso;Data;Bolas\n${ultimo + 1};2026-10-01;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;"Cidade"`;
+  await page.locator('#arquivo').setInputFiles({ name: 'novos.txt', mimeType: 'text/plain', buffer: Buffer.from(txt) });
+  await expect(page.locator('#impMsg')).toContainText('novos.txt: 1 concursos lidos, 1 novos');
+  await expect(page.locator('#base')).toContainText(`até o ${ultimo + 1} (01/10/2026)`);
+  await page.locator('#arquivo').setInputFiles({ name: 'ruim.xlsx', mimeType: 'application/octet-stream', buffer: Buffer.from('PK\x03\x04 quebrado') });
+  await expect(page.locator('#impMsg')).toContainText('Não consegui abrir ruim.xlsx');
 });
 
 test('cabe na largura da tela sem rolagem lateral', async ({ page }) => {

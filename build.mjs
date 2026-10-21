@@ -1,7 +1,7 @@
 // Monta dist/index.html: um único arquivo com módulos e histórico embutidos.
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 const r = f => readFileSync(new URL(f, import.meta.url), 'utf8');
-const modulos = ['src/dados.js', 'src/fechamento.js', 'src/analise.js'].map(f => r(f).replace(/^export /gm, '')).join('\n');
+const modulos = ['src/dados.js', 'src/fechamento.js', 'src/analise.js', 'src/planilha.js'].map(f => r(f).replace(/^export /gm, '')).join('\n');
 const csv = r('dados/lotofacil.csv').replace(/^﻿/, '').trim();
 const html = r('src/app.html').replace('/*MODULES*/', () => modulos).replace('/*CSV*/', () => csv);
 mkdirSync(new URL('dist/', import.meta.url), { recursive: true });
