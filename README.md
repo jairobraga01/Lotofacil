@@ -1,2 +1,2 @@
-# Lotof-cil
+# Lotofacil
 Criação de Jogos da Lotofácil 
