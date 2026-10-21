@@ -1,0 +1,313 @@
+<title>Fechamento Lotofácil</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: ferramenta de trabalho em abas; grade 5x5 de dezenas como elemento central, resultados em lista compacta. */
+:root {
+  --bg: #f5f4f7; --surface: #ffffff; --fg: #1d1a22; --muted: #6b6575; --line: #dcd8e2;
+  --accent: #8a1f7a; --accent-fg: #ffffff; --hit: #1b7f4b; --warn: #a35a00; --soft: #efeaf2;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #16131a; --surface: #201c27; --fg: #eeeaf3; --muted: #a49dae; --line: #342e3d;
+  --accent: #d77bc9; --accent-fg: #1d0f1a; --hit: #5fcf93; --warn: #e0a04a; --soft: #2a2432; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #16131a; --surface: #201c27; --fg: #eeeaf3; --muted: #a49dae; --line: #342e3d;
+  --accent: #d77bc9; --accent-fg: #1d0f1a; --hit: #5fcf93; --warn: #e0a04a; --soft: #2a2432; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans); padding-block: 16px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 720px; margin: 0 auto; display: grid; gap: 16px; }
+h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; font: 500 15px var(--sans); color: var(--muted); cursor: pointer; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.panel { display: grid; gap: 16px; } .panel[hidden] { display: none; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; }
+.grid25 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-width: 340px; }
+.num { font: 600 16px var(--mono); border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; aspect-ratio: 1.15; cursor: pointer; }
+.num[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
+input, select, textarea { font: 15px var(--sans); background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; }
+input[type=number] { width: 78px; } textarea { width: 100%; font-family: var(--mono); font-size: 13px; }
+.pair { display: flex; gap: 6px; align-items: center; }
+.btn { font: 600 15px var(--sans); border-radius: 6px; padding: 10px 16px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); cursor: pointer; }
+.btn.sec { background: none; color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; } .warn { color: var(--warn); }
+.games { display: grid; gap: 6px; margin-top: 12px; max-height: 420px; overflow-y: auto; }
+.game { display: flex; flex-wrap: wrap; gap: 3px 4px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.game .i { color: var(--muted); font: 500 12px var(--mono); width: 3ch; text-align: right; margin-right: 4px; }
+.chip { font: 500 13px var(--mono); background: var(--soft); border-radius: 4px; padding: 1px 5px; }
+.chip.hit { background: none; color: var(--hit); box-shadow: inset 0 0 0 1.5px var(--hit); font-weight: 600; }
+.game .meta { color: var(--muted); font-size: 12px; margin-left: auto; }
+.pts { font: 600 13px var(--mono); margin-left: auto; }
+.pts.good { color: var(--hit); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; margin-top: 8px; }
+.tile { background: var(--soft); border-radius: 6px; padding: 8px 10px; } .tile b { display: block; font: 600 20px var(--mono); } .tile span { font-size: 12px; color: var(--muted); }
+.bars { display: grid; gap: 4px; }
+.bar { display: grid; grid-template-columns: 2.4ch 1fr 7ch 5ch; gap: 8px; align-items: center; font: 500 13px var(--mono); }
+.bar i { display: block; height: 10px; background: var(--accent); border-radius: 2px; min-width: 2px; }
+.bar .a { color: var(--muted); text-align: right; } .bar .f { text-align: right; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.mini { display: grid; gap: 2px; font: 13px var(--mono); } .mini div { display: flex; justify-content: space-between; gap: 8px; }
+.scroll { overflow-x: auto; }
+@media (prefers-reduced-motion: no-preference) { .num { transition: background .1s; } }
+</style>
+
+<main>
+  <header>
+    <h1>Fechamento Lotofácil</h1>
+    <p class="sub" id="base"></p>
+  </header>
+  <div class="tabs" role="tablist" id="tabs">
+    <button role="tab" aria-selected="true" data-tab="fechar">Fechar</button>
+    <button role="tab" aria-selected="false" data-tab="conferir">Conferir</button>
+    <button role="tab" aria-selected="false" data-tab="stats">Estatísticas</button>
+    <button role="tab" aria-selected="false" data-tab="dados">Dados</button>
+  </div>
+
+  <section class="panel" id="p-fechar">
+    <div class="card">
+      <h2>Dezenas escolhidas <span id="cont" style="text-transform:none;letter-spacing:0"></span></h2>
+      <div class="grid25" id="grid"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn sec" id="limpar" type="button">Limpar</button>
+        <button class="btn sec" id="maisFreq" type="button">18 mais frequentes (últimos 100)</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Garantia e filtros</h2>
+      <div class="row">
+        <label>Garantia mínima
+          <select id="garantia"><option>11</option><option>12</option><option selected>13</option><option>14</option></select></label>
+        <label>Pares<span class="pair"><input id="parMin" type="number" min="0" max="15" placeholder="mín"> a <input id="parMax" type="number" min="0" max="15" placeholder="máx"></span></label>
+        <label>Repetidas do último<span class="pair"><input id="repMin" type="number" min="0" max="15" placeholder="mín"> a <input id="repMax" type="number" min="0" max="15" placeholder="máx"></span></label>
+        <label>Soma<span class="pair"><input id="somaMin" type="number" min="120" max="270" placeholder="mín"> a <input id="somaMax" type="number" min="120" max="270" placeholder="máx"></span></label>
+      </div>
+      <p class="hint" id="histHint"></p>
+      <p class="hint">A garantia vale quando os 15 sorteados estão todos entre as dezenas escolhidas. Filtros removem jogos e podem quebrar a garantia.</p>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="gerar" type="button" disabled>Gerar jogos</button>
+        <label>Preço por jogo (R$)<input id="preco" type="number" min="0" step="0.5" value="3.5" style="width:90px"></label>
+      </div>
+    </div>
+    <div class="card" id="resCard" hidden>
+      <h2>Jogos gerados</h2>
+      <div id="resumo"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sec" id="salvar" type="button">Salvar jogos</button>
+        <button class="btn sec" id="copiar" type="button">Copiar</button>
+      </div>
+      <div class="games" id="lista"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-conferir" hidden>
+    <div class="card">
+      <h2>Conferir jogos num concurso</h2>
+      <div class="row">
+        <label>Jogos<select id="fonte"><option value="gerados">Gerados agora</option><option value="salvos">Salvos</option></select></label>
+        <label>Concurso<input id="nConc" type="number" min="1" style="width:100px"></label>
+        <button class="btn" id="conferirBtn" type="button">Conferir</button>
+        <button class="btn sec" id="limparSalvos" type="button">Apagar salvos</button>
+      </div>
+      <p class="hint" id="salvosInfo"></p>
+      <div id="confRes"></div>
+    </div>
+    <div class="card">
+      <h2>Um jogo contra todo o histórico</h2>
+      <label>15 dezenas separadas por espaço ou vírgula<input id="umJogo" type="text" placeholder="01 02 03 05 06 08 09 11 12 14 15 18 20 23 25" style="width:100%"></label>
+      <div class="row" style="margin-top:12px"><button class="btn" id="histBtn" type="button">Conferir histórico</button></div>
+      <div id="histRes"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-stats" hidden>
+    <div class="card">
+      <div class="row"><label>Janela<select id="janela"><option value="0">Todos os concursos</option><option value="1000">Últimos 1000</option><option value="500">Últimos 500</option><option value="100" selected>Últimos 100</option><option value="30">Últimos 30</option></select></label></div>
+      <h2 style="margin-top:16px">Frequência e atraso por dezena</h2>
+      <div class="bars" id="bars"></div>
+      <p class="hint">Atraso é quantos concursos se passaram desde a última vez que a dezena saiu.</p>
+    </div>
+    <div class="card"><div class="cols">
+      <div><h2>Pares por concurso</h2><div class="mini" id="dPares"></div></div>
+      <div><h2>Repetidas do anterior</h2><div class="mini" id="dRep"></div></div>
+      <div><h2>Soma das dezenas</h2><div class="mini" id="dSoma"></div></div>
+    </div></div>
+  </section>
+
+  <section class="panel" id="p-dados" hidden>
+    <div class="card">
+      <h2>Atualizar histórico</h2>
+      <p class="hint" style="margin-top:0">Cole linhas no formato do CSV da Lotorama (<code>concurso,data,dez,dez,...</code>) ou escolha um arquivo. Concursos novos são somados ao histórico e guardados neste aparelho.</p>
+      <textarea id="colar" rows="4" placeholder="3792,29/09/2026,01,02,04,..."></textarea>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="importar" type="button">Importar texto</button>
+        <label>Arquivo CSV<input id="arquivo" type="file" accept=".csv,.txt,text/csv,text/plain"></label>
+      </div>
+      <p class="hint" id="impMsg" role="status"></p>
+    </div>
+  </section>
+</main>
+
+<script type="text/plain" id="csv-base">/*CSV*/</script>
+<script>
+/*MODULES*/
+
+const $ = id => document.getElementById(id);
+const p2 = n => String(n).padStart(2, '0');
+const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const ler = (k, padrao) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : padrao; } catch (e) { return padrao; } };
+
+let concursos = lerCsvLotorama($('csv-base').textContent);
+const extras = ler('lf.extras', []);
+function mesclar(lista) {
+  const mapa = new Map(concursos.map(c => [c.concurso, c]));
+  let novos = 0;
+  lista.forEach(c => { if (!mapa.has(c.concurso)) novos++; mapa.set(c.concurso, c); });
+  concursos = [...mapa.values()].sort((a, b) => a.concurso - b.concurso);
+  return novos;
+}
+mesclar(extras);
+
+let escolhidas = new Set(), gerados = [], salvos = ler('lf.salvos', []);
+const ultimo = () => concursos.at(-1);
+
+function infoBase() {
+  const u = ultimo();
+  $('base').textContent = `${concursos.length} concursos, até o ${u.concurso} (${u.data}).`;
+  $('nConc').value = $('nConc').value || u.concurso;
+}
+
+// Abas
+document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
+  document.querySelectorAll('.panel').forEach(p => p.hidden = p.id !== 'p-' + b.dataset.tab);
+  if (b.dataset.tab === 'stats') desenharStats();
+  if (b.dataset.tab === 'conferir') salvosInfo();
+}));
+
+// Grade de dezenas
+const grid = $('grid');
+for (let d = 1; d <= 25; d++) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'num'; b.textContent = p2(d); b.setAttribute('aria-pressed', 'false');
+  b.addEventListener('click', () => { escolhidas.has(d) ? escolhidas.delete(d) : escolhidas.add(d); atualizarGrade(); });
+  grid.append(b);
+}
+function atualizarGrade() {
+  [...grid.children].forEach((b, i) => b.setAttribute('aria-pressed', escolhidas.has(i + 1)));
+  const n = escolhidas.size, ok = n >= 16 && n <= 20;
+  $('cont').textContent = `· ${n} de 16 a 20`;
+  $('gerar').disabled = !ok;
+}
+$('limpar').addEventListener('click', () => { escolhidas.clear(); atualizarGrade(); });
+$('maisFreq').addEventListener('click', () => {
+  const est = estatisticasDezenas(concursos.slice(-100)).sort((a, b) => b.frequencia - a.frequencia || a.dezena - b.dezena);
+  escolhidas = new Set(est.slice(0, 18).map(e => e.dezena)); atualizarGrade();
+});
+
+const faixa = (a, b) => { const x = a.value === '' ? null : +a.value, y = b.value === '' ? null : +b.value; return x === null && y === null ? null : [x ?? 0, y ?? 999]; };
+function chips(jogo, acerto) {
+  return jogo.map(d => `<span class="chip${acerto && acerto.includes(d) ? ' hit' : ''}">${p2(d)}</span>`).join('');
+}
+
+$('gerar').addEventListener('click', () => {
+  const btn = $('gerar'); btn.disabled = true; btn.textContent = 'Gerando…';
+  setTimeout(() => {
+    try {
+      const g = +$('garantia').value;
+      const todos = gerarFechamento([...escolhidas], g);
+      const ant = ultimo().dezenas;
+      const crit = { pares: faixa($('parMin'), $('parMax')), repetidas: faixa($('repMin'), $('repMax')), soma: faixa($('somaMin'), $('somaMax')) };
+      gerados = filtrarJogos(todos, crit, ant);
+      const preco = +$('preco').value || 0;
+      const quebra = gerados.length < todos.length;
+      $('resumo').innerHTML = `<div class="tiles">
+        <div class="tile"><b>${gerados.length}</b><span>jogos${quebra ? ` (de ${todos.length})` : ''}</span></div>
+        <div class="tile"><b>${escolhidas.size}</b><span>dezenas</span></div>
+        <div class="tile"><b>${g}</b><span>pontos garantidos</span></div>
+        <div class="tile"><b>R$ ${(gerados.length * preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</b><span>custo estimado</span></div></div>
+        ${quebra ? '<p class="hint warn">Os filtros removeram jogos: a garantia já não é completa.</p>' : ''}
+        ${gerados.length === 0 ? '<p class="hint warn">Nenhum jogo passou nos filtros. Relaxe algum critério.</p>' : ''}`;
+      $('lista').innerHTML = gerados.map((j, i) => { const p = perfil(j, ant); return `<div class="game"><span class="i">${i + 1}</span>${chips(j)}<span class="meta">${p.pares}p · rep ${p.repetidas} · Σ${p.soma}</span></div>`; }).join('');
+      $('resCard').hidden = false;
+      $('resCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (e) { $('resumo').innerHTML = `<p class="warn">${e.message}</p>`; $('resCard').hidden = false; }
+    btn.textContent = 'Gerar jogos'; atualizarGrade();
+  }, 30);
+});
+
+$('salvar').addEventListener('click', () => {
+  const chave = new Set(salvos.map(j => j.join()));
+  gerados.forEach(j => { if (!chave.has(j.join())) salvos.push(j); });
+  guardar('lf.salvos', salvos); salvosInfo();
+  $('salvar').textContent = `Salvos (${salvos.length})`; setTimeout(() => $('salvar').textContent = 'Salvar jogos', 1800);
+});
+$('copiar').addEventListener('click', async () => {
+  const txt = gerados.map(j => j.map(p2).join(' ')).join('\n');
+  try { await navigator.clipboard.writeText(txt); $('copiar').textContent = 'Copiado'; }
+  catch (e) { const t = document.createElement('textarea'); t.value = txt; $('resCard').append(t); t.select(); $('copiar').textContent = 'Selecione e copie'; }
+  setTimeout(() => $('copiar').textContent = 'Copiar', 1800);
+});
+
+// Conferir
+function salvosInfo() { $('salvosInfo').textContent = `${salvos.length} jogos salvos neste aparelho.`; }
+$('limparSalvos').addEventListener('click', () => { salvos = []; guardar('lf.salvos', salvos); salvosInfo(); });
+$('conferirBtn').addEventListener('click', () => {
+  const jogos = $('fonte').value === 'salvos' ? salvos : gerados;
+  const c = concursos.find(x => x.concurso === +$('nConc').value);
+  if (!c) { $('confRes').innerHTML = '<p class="hint warn">Concurso não encontrado no histórico.</p>'; return; }
+  if (!jogos.length) { $('confRes').innerHTML = '<p class="hint warn">Não há jogos nessa lista.</p>'; return; }
+  const { faixas, detalhe } = conferirJogos(jogos, c);
+  detalhe.sort((a, b) => b.pontos - a.pontos);
+  $('confRes').innerHTML = `<p class="hint">Concurso ${c.concurso} (${c.data}): ${c.dezenas.map(p2).join(' ')}</p>
+    <div class="tiles">${[15, 14, 13, 12, 11].map(p => `<div class="tile"><b>${faixas[p]}</b><span>${p} pontos</span></div>`).join('')}</div>
+    <div class="games">${detalhe.map(r => `<div class="game">${chips(r.jogo, c.dezenas)}<span class="pts${r.pontos >= 11 ? ' good' : ''}">${r.pontos}</span></div>`).join('')}</div>`;
+});
+$('histBtn').addEventListener('click', () => {
+  const jogo = [...new Set($('umJogo').value.split(/[^0-9]+/).filter(Boolean).map(Number))];
+  if (jogo.length !== 15 || jogo.some(d => d < 1 || d > 25)) { $('histRes').innerHTML = '<p class="hint warn">Digite 15 dezenas diferentes entre 1 e 25.</p>'; return; }
+  const r = conferir(jogo, concursos, 11), cont = {};
+  r.forEach(x => cont[x.pontos] = (cont[x.pontos] || 0) + 1);
+  const top = r.filter(x => x.pontos >= 14).slice(-10).reverse();
+  $('histRes').innerHTML = `<div class="tiles">${[15, 14, 13, 12, 11].map(p => `<div class="tile"><b>${cont[p] || 0}</b><span>${p} pontos</span></div>`).join('')}</div>
+    <p class="hint">Em ${concursos.length} concursos.${top.length ? ' Últimos com 14 ou mais: ' + top.map(x => `${x.concurso} (${x.pontos})`).join(', ') : ' Nenhum com 14 ou mais.'}</p>`;
+});
+
+// Estatísticas
+function desenharStats() {
+  const n = +$('janela').value, base = n ? concursos.slice(-n) : concursos;
+  const est = estatisticasDezenas(base), max = Math.max(...est.map(e => e.frequencia));
+  $('bars').innerHTML = est.map(e => `<div class="bar"><span>${p2(e.dezena)}</span><i style="width:${(e.frequencia / max * 100).toFixed(1)}%"></i><span class="f">${(e.percentual * 100).toFixed(1)}%</span><span class="a">${e.atraso}</span></div>`).join('');
+  const d = distribuicoes(base), tot = base.length;
+  const lista = o => Object.keys(o).sort((a, b) => a - b).map(k => `<div><span>${k}</span><span>${(o[k] / tot * 100).toFixed(1)}%</span></div>`).join('');
+  $('dPares').innerHTML = lista(d.pares); $('dRep').innerHTML = lista(d.repetidas);
+  $('dSoma').innerHTML = `<div><span>mínima</span><span>${d.somaMin}</span></div><div><span>mediana</span><span>${d.somaMediana}</span></div><div><span>máxima</span><span>${d.somaMax}</span></div>`;
+  const d100 = distribuicoes(concursos.slice(-1000)), t = Math.min(1000, concursos.length);
+  const cobre = (o, a, b) => Object.entries(o).filter(([k]) => k >= a && k <= b).reduce((s, [, v]) => s + v, 0) / t * 100;
+  $('histHint').textContent = `Referência (últimos ${t} concursos): ${cobre(d100.pares, 6, 8).toFixed(0)}% têm de 6 a 8 pares e ${cobre(d100.repetidas, 8, 10).toFixed(0)}% repetem de 8 a 10 dezenas do concurso anterior.`;
+}
+$('janela').addEventListener('change', desenharStats);
+
+// Dados
+function importarTexto(texto) {
+  const lidos = lerCsvLotorama(texto);
+  if (!lidos.length) { $('impMsg').textContent = 'Nenhuma linha válida encontrada. Use: concurso,data,15 dezenas.'; return; }
+  const conhecidos = new Set(concursos.map(c => c.concurso));
+  const novos = lidos.filter(c => !conhecidos.has(c.concurso));
+  novos.forEach(c => extras.push(c)); guardar('lf.extras', extras); mesclar(novos);
+  infoBase(); desenharStats();
+  $('impMsg').textContent = `${lidos.length} linhas lidas, ${novos.length} concursos novos. Último: ${ultimo().concurso}.`;
+}
+$('importar').addEventListener('click', () => importarTexto($('colar').value));
+$('arquivo').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(importarTexto); });
+
+infoBase(); atualizarGrade(); desenharStats();
+</script>
