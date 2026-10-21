@@ -1,6 +1,6 @@
 // Lê resultados de qualquer arquivo de texto ou planilha já convertido em linhas.
 // Cada linha precisa ter o número do concurso, a data e as 15 dezenas, nessa ordem; separadores
-// (vírgula, ponto e vírgula, tabulação, espaço, |), aspas, cabeçalhos e colunas extras depois das
+// (vírgula, ponto e vírgula, tabulação, espaço, |, dezenas com hífen), aspas, rótulos como "Data:", cabeçalhos e colunas extras depois das
 // dezenas (ganhadores, prêmios, cidades) não atrapalham. Data pode vir antes do concurso.
 // Devolve os concursos válidos e o que ficou de fora, para o app avisar.
 const DATA_TXT = /^(?:(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})|(\d{4})-(\d{1,2})-(\d{1,2}))(?:T[\d:.]+Z?)?$/;
@@ -17,7 +17,8 @@ export function analisarLinhas(linhas) {
   const inteiro = t => /^\d+$/.test(t);
   linhas.forEach(bruta => {
     const l = String(bruta).replace(/^\uFEFF/, '').trim();
-    const t = l.replace(/"/g, '').split(/[;,\t|\s]+/).filter(Boolean);
+    const t = l.replace(/"/g, '').replace(/[^\s\d;,|:]+:/g, ' ')        // rótulos "Concurso:", "Números:"
+      .split(/[;,\t|\s]+/).flatMap(x => /^\d{1,2}(-\d{1,2})+$/.test(x) ? x.split('-') : x).filter(Boolean);
     const di = t.findIndex(x => normalizarData(x));
     if (di < 0) {                                          // cabeçalho, título ou linha sem data
       if (t.filter(inteiro).length >= 10) invalidas.push(l);
