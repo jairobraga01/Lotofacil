@@ -72,6 +72,11 @@ table { border-collapse: collapse; width: 100%; font: 13px var(--mono); margin-t
 th, td { text-align: right; padding: 5px 8px; border-top: 1px solid var(--line); white-space: nowrap; }
 th { font: 600 12px var(--sans); color: var(--muted); } th:first-child, td:first-child { text-align: left; }
 td.good { color: var(--hit); font-weight: 600; }
+.soltar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 16px; border: 1.5px dashed var(--line); border-radius: 8px; cursor: pointer; font-size: 14px; }
+.soltar.sobre, .soltar:focus-within { border-color: var(--accent); background: var(--soft); }
+.soltar input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.colar { margin-top: 12px; } .colar summary { cursor: pointer; color: var(--accent); font-weight: 500; font-size: 14px; }
+.colar textarea { margin-top: 8px; } .colar .btn { margin-top: 8px; }
 @media (prefers-reduced-motion: no-preference) { .num { transition: background .1s; } }
 </style>
 
@@ -186,13 +191,19 @@ td.good { color: var(--hit); font-weight: 600; }
   <section class="panel" id="p-dados" hidden>
     <div class="card">
       <h2>Atualizar histórico</h2>
-      <p class="hint" style="margin-top:0">Cole linhas no formato do CSV da Lotorama (<code>concurso,data,dez,dez,...</code>) ou escolha o arquivo baixado em lotorama.com.br. Concursos novos são somados ao histórico e guardados neste aparelho.</p>
-      <textarea id="colar" rows="4" placeholder="3792,29/09/2026,01,02,04,..."></textarea>
-      <div class="row" style="margin-top:12px">
-        <button class="btn" id="importar" type="button">Importar texto</button>
-        <label>Arquivo CSV<input id="arquivo" type="file" accept=".csv,.txt,text/csv,text/plain"></label>
-      </div>
+      <p class="hint" style="margin-top:0">Escolha o arquivo com os resultados: CSV, TXT, Excel (.xlsx ou .xls) ou LibreOffice Calc (.ods). O app acha em cada linha o concurso, a data e as 15 dezenas; cabeçalhos e colunas extras são ignorados. Concursos novos são somados ao histórico e guardados neste aparelho.</p>
+      <label class="soltar" id="soltar">
+        <input id="arquivo" type="file" accept=".csv,.txt,.tsv,.xlsx,.xlsm,.xls,.ods,.htm,.html,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.oasis.opendocument.spreadsheet">
+        <span class="btn">Escolher arquivo</span>
+        <span id="soltarTxt">ou arraste o arquivo para cá</span>
+      </label>
       <div id="impMsg" role="status"></div>
+      <p class="hint">Onde baixar: no site da Caixa (loterias.caixa.gov.br, página da Lotofácil, link <i>Resultados da Lotofácil</i>, que baixa uma planilha do Excel) ou o CSV de lotorama.com.br.</p>
+      <details class="colar">
+        <summary>Colar resultados em texto</summary>
+        <textarea id="colar" rows="4" placeholder="3792,29/09/2026,01,02,04,..."></textarea>
+        <button class="btn sec" id="importar" type="button">Importar texto</button>
+      </details>
     </div>
     <div class="card">
       <h2>Situação dos dados</h2>
@@ -490,27 +501,40 @@ function desenharStats() {
 $('janela').addEventListener('change', desenharStats);
 
 // Dados
-function importarTexto(texto) {
-  const { concursos: lidos, invalidas, repetidos } = analisarCsv(texto);
+function importarLinhas(linhas, origem) {
+  const { concursos: lidos, invalidas, repetidos } = analisarLinhas(linhas);
   const avisos = [];
   if (invalidas.length) avisos.push(`${invalidas.length} linha${invalidas.length > 1 ? 's' : ''} ignorada${invalidas.length > 1 ? 's' : ''} por formato inválido (ex.: <code>${esc(invalidas[0].slice(0, 60))}</code>).`);
   if (repetidos.length) avisos.push(`Concurso repetido no arquivo com dezenas diferentes: ${repetidos.slice(0, 10).join(', ')}. Ficou a primeira versão.`);
   const atuais = new Map(concursos.map(c => [c.concurso, c]));
   const divergentes = lidos.filter(c => atuais.has(c.concurso) && atuais.get(c.concurso).dezenas.join() !== c.dezenas.join()).map(c => c.concurso);
   if (divergentes.length) avisos.push(`O arquivo traz dezenas diferentes das já guardadas nos concursos ${divergentes.slice(0, 10).join(', ')}. Mantive as já guardadas; confira a fonte.`);
+  const avisar = html => { $('impMsg').innerHTML = html + avisos.map(a => `<p class="hint warn">${a}</p>`).join(''); };
   if (!lidos.length) {
-    $('impMsg').innerHTML = `<p class="hint warn">Nenhuma linha válida encontrada. Use: concurso,data (dd/mm/aaaa),15 dezenas.</p>${avisos.map(a => `<p class="hint warn">${a}</p>`).join('')}`;
+    avisar(`<p class="hint warn">${esc(origem)}: nenhum resultado encontrado. Cada linha precisa ter o concurso, a data (dd/mm/aaaa) e as 15 dezenas.</p>`);
     return;
   }
   const novos = lidos.filter(c => !atuais.has(c.concurso));
   novos.forEach(c => extras.push(c)); guardar('lf.extras', extras); mesclar(novos);
   const falta = concursosFaltando(concursos);
   if (falta.length) avisos.push(`Faltam concursos no histórico: ${falta.slice(0, 15).join(', ')}${falta.length > 15 ? '…' : ''}.`);
+  const ate = lidos.at(-1);
+  if (!novos.length && ate.concurso <= ultimo().concurso)
+    avisos.unshift(`Nada novo: o arquivo vai só até o concurso ${ate.concurso} (${ate.data}), e o app já tem até o ${ultimo().concurso}. O arquivo está desatualizado; baixe de novo ou use a planilha da Caixa.`);
   infoBase(); desenharStats();
-  $('impMsg').innerHTML = `<p class="hint">${lidos.length} concursos lidos, ${novos.length} novos. Último: ${ultimo().concurso} (${ultimo().data}).</p>${avisos.map(a => `<p class="hint warn">${a}</p>`).join('')}`;
+  avisar(`<p class="hint">${esc(origem)}: ${lidos.length} concursos lidos, ${novos.length} novos. Último: ${ultimo().concurso} (${ultimo().data}).</p>`);
 }
-$('importar').addEventListener('click', () => importarTexto($('colar').value));
-$('arquivo').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(importarTexto); });
+async function importarArquivo(f) {
+  $('impMsg').innerHTML = `<p class="hint">Lendo ${esc(f.name)}…</p>`;
+  try { importarLinhas(await linhasDoArquivo(await f.arrayBuffer()), f.name); }
+  catch (e) { $('impMsg').innerHTML = `<p class="hint warn">Não consegui abrir ${esc(f.name)}: ${esc(e.message)}. Se for uma planilha, tente salvar como CSV.</p>`; }
+}
+$('importar').addEventListener('click', () => importarLinhas($('colar').value.split(/\r?\n/), 'Texto colado'));
+$('arquivo').addEventListener('change', e => { const f = e.target.files[0]; if (f) importarArquivo(f); e.target.value = ''; });
+const soltar = $('soltar');
+['dragenter', 'dragover'].forEach(t => soltar.addEventListener(t, e => { e.preventDefault(); soltar.classList.add('sobre'); }));
+['dragleave', 'drop'].forEach(t => soltar.addEventListener(t, () => soltar.classList.remove('sobre')));
+soltar.addEventListener('drop', e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) importarArquivo(f); });
 
 infoBase(); atualizarGrade(); desenharStats(); preencherFonte();
 </script>

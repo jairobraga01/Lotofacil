@@ -77,6 +77,11 @@ table { border-collapse: collapse; width: 100%; font: 13px var(--mono); margin-t
 th, td { text-align: right; padding: 5px 8px; border-top: 1px solid var(--line); white-space: nowrap; }
 th { font: 600 12px var(--sans); color: var(--muted); } th:first-child, td:first-child { text-align: left; }
 td.good { color: var(--hit); font-weight: 600; }
+.soltar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 16px; border: 1.5px dashed var(--line); border-radius: 8px; cursor: pointer; font-size: 14px; }
+.soltar.sobre, .soltar:focus-within { border-color: var(--accent); background: var(--soft); }
+.soltar input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.colar { margin-top: 12px; } .colar summary { cursor: pointer; color: var(--accent); font-weight: 500; font-size: 14px; }
+.colar textarea { margin-top: 8px; } .colar .btn { margin-top: 8px; }
 @media (prefers-reduced-motion: no-preference) { .num { transition: background .1s; } }
 </style>
 <link rel="manifest" href="manifest.webmanifest">
@@ -199,13 +204,19 @@ td.good { color: var(--hit); font-weight: 600; }
   <section class="panel" id="p-dados" hidden>
     <div class="card">
       <h2>Atualizar histórico</h2>
-      <p class="hint" style="margin-top:0">Cole linhas no formato do CSV da Lotorama (<code>concurso,data,dez,dez,...</code>) ou escolha o arquivo baixado em lotorama.com.br. Concursos novos são somados ao histórico e guardados neste aparelho.</p>
-      <textarea id="colar" rows="4" placeholder="3792,29/09/2026,01,02,04,..."></textarea>
-      <div class="row" style="margin-top:12px">
-        <button class="btn" id="importar" type="button">Importar texto</button>
-        <label>Arquivo CSV<input id="arquivo" type="file" accept=".csv,.txt,text/csv,text/plain"></label>
-      </div>
+      <p class="hint" style="margin-top:0">Escolha o arquivo com os resultados: CSV, TXT, Excel (.xlsx ou .xls) ou LibreOffice Calc (.ods). O app acha em cada linha o concurso, a data e as 15 dezenas; cabeçalhos e colunas extras são ignorados. Concursos novos são somados ao histórico e guardados neste aparelho.</p>
+      <label class="soltar" id="soltar">
+        <input id="arquivo" type="file" accept=".csv,.txt,.tsv,.xlsx,.xlsm,.xls,.ods,.htm,.html,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.oasis.opendocument.spreadsheet">
+        <span class="btn">Escolher arquivo</span>
+        <span id="soltarTxt">ou arraste o arquivo para cá</span>
+      </label>
       <div id="impMsg" role="status"></div>
+      <p class="hint">Onde baixar: no site da Caixa (loterias.caixa.gov.br, página da Lotofácil, link <i>Resultados da Lotofácil</i>, que baixa uma planilha do Excel) ou o CSV de lotorama.com.br.</p>
+      <details class="colar">
+        <summary>Colar resultados em texto</summary>
+        <textarea id="colar" rows="4" placeholder="3792,29/09/2026,01,02,04,..."></textarea>
+        <button class="btn sec" id="importar" type="button">Importar texto</button>
+      </details>
     </div>
     <div class="card">
       <h2>Situação dos dados</h2>
@@ -4007,15 +4018,37 @@ td.good { color: var(--hit); font-weight: 600; }
 3790,27/09/2026,01,03,04,05,06,07,09,11,14,15,16,17,20,21,25
 3791,28/09/2026,01,02,04,06,08,09,11,12,13,14,15,16,19,24,25</script>
 <script>
-// Lê o CSV da Lotorama: "Concurso,Data,Números" com as 15 dezenas após a data.
+// Lê resultados de qualquer arquivo de texto ou planilha já convertido em linhas.
+// Cada linha precisa ter o número do concurso, a data e as 15 dezenas, nessa ordem; separadores
+// (vírgula, ponto e vírgula, tabulação, espaço, |), aspas, cabeçalhos e colunas extras depois das
+// dezenas (ganhadores, prêmios, cidades) não atrapalham. Data pode vir antes do concurso.
 // Devolve os concursos válidos e o que ficou de fora, para o app avisar.
-function analisarCsv(texto) {
+const DATA_TXT = /^(?:(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})|(\d{4})-(\d{1,2})-(\d{1,2}))(?:T[\d:.]+Z?)?$/;
+const HORA_TXT = /^\d{1,2}:\d{2}(:\d{2})?$/;
+const doisDig = n => String(n).padStart(2, '0');
+function normalizarData(t) {
+  const m = DATA_TXT.exec(t); if (!m) return null;
+  const [d, mes, a] = m[1] ? [+m[1], +m[2], m[3]] : [+m[6], +m[5], m[4]];
+  return d >= 1 && d <= 31 && mes >= 1 && mes <= 12 ? `${doisDig(d)}/${doisDig(mes)}/${a}` : null;
+}
+
+function analisarLinhas(linhas) {
   const concursos = [], invalidas = [], porNumero = new Map(), repetidos = [];
-  texto.replace(/^﻿/, '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).forEach((l, i) => {
-    const [n, data, ...nums] = l.split(',').map(s => s.trim());
-    if (i === 0 && !/^\d+$/.test(n)) return;              // cabeçalho
-    const concurso = Number(n), dezenas = nums.filter(Boolean).map(Number);
-    const ok = Number.isInteger(concurso) && concurso > 0 && /^\d{2}\/\d{2}\/\d{4}$/.test(data ?? '')
+  const inteiro = t => /^\d+$/.test(t);
+  linhas.forEach(bruta => {
+    const l = String(bruta).replace(/^\uFEFF/, '').trim();
+    const t = l.replace(/"/g, '').split(/[;,\t|\s]+/).filter(Boolean);
+    const di = t.findIndex(x => normalizarData(x));
+    if (di < 0) {                                          // cabeçalho, título ou linha sem data
+      if (t.filter(inteiro).length >= 10) invalidas.push(l);
+      return;
+    }
+    let ci = -1, ini = di + 1;
+    for (let i = di - 1; i >= 0 && ci < 0; i--) if (inteiro(t[i])) ci = i;
+    if (ci < 0 && inteiro(t[di + 1] ?? '')) { ci = di + 1; ini = di + 2; }   // data antes do concurso
+    const concurso = ci < 0 ? NaN : Number(t[ci]), data = normalizarData(t[di]);
+    const dezenas = t.slice(ini).filter(x => !HORA_TXT.test(x)).slice(0, 15).map(x => inteiro(x) ? Number(x) : NaN);
+    const ok = Number.isInteger(concurso) && concurso > 0
       && dezenas.length === 15 && dezenas.every(d => Number.isInteger(d) && d >= 1 && d <= 25)
       && new Set(dezenas).size === 15;
     if (!ok) { invalidas.push(l); return; }
@@ -4027,6 +4060,8 @@ function analisarCsv(texto) {
   concursos.sort((a, b) => a.concurso - b.concurso);
   return { concursos, invalidas, repetidos };
 }
+
+const analisarCsv = texto => analisarLinhas(texto.split(/\r?\n/));
 
 const lerCsvLotorama = texto => analisarCsv(texto).concursos;
 
@@ -4255,6 +4290,236 @@ function conferirPeriodo(jogos, concursos, de, ate, premios = {}) {
   const faixas = { 11: 0, 12: 0, 13: 0, 14: 0, 15: 0 };
   linhas.forEach(l => Object.keys(faixas).forEach(p => faixas[p] += l.faixas[p]));
   return { linhas, faixas, valor: linhas.reduce((s, l) => s + l.valor, 0) };
+}
+
+// Abre arquivos de resultados sem biblioteca externa: texto (CSV, TXT, UTF-8/Latin-1/UTF-16),
+// tabela HTML, Excel (.xlsx e o antigo .xls) e LibreOffice Calc (.ods).
+// Devolve as linhas de todas as abas como texto "célula;célula;...", prontas para analisarLinhas().
+// O formato é reconhecido pelo conteúdo do arquivo, não pela extensão.
+async function linhasDoArquivo(dados) {
+  const b = new Uint8Array(dados);
+  if (b[0] === 0x50 && b[1] === 0x4b) return lerZipPlanilha(b);
+  if (b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0) return lerXls(b);
+  const texto = decodificarTexto(b);
+  if (/<t[dh][\s>]/i.test(texto)) return linhasHtml(texto);
+  return texto.split(/\r?\n|\r/);
+}
+
+const u16 = (a, o) => a[o] | a[o + 1] << 8;
+const u32 = (a, o) => (a[o] | a[o + 1] << 8 | a[o + 2] << 16 | a[o + 3] << 24) >>> 0;
+const f64 = (a, o) => new DataView(a.buffer, a.byteOffset + o, 8).getFloat64(0, true);
+
+function decodificarTexto(b) {
+  if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder('utf-16le').decode(b.subarray(2));
+  if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder('utf-16be').decode(b.subarray(2));
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(b); }
+  catch (e) { return new TextDecoder('windows-1252').decode(b); }
+}
+
+const entidades = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'", nbsp: ' ' };
+const desescapar = t => t.replace(/&(#x[\da-f]+|#\d+|\w+);/gi, (m, e) =>
+  e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : +e.slice(1)) : entidades[e] ?? m);
+const semTags = t => desescapar(t.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+const atributo = (attrs, nome) => (new RegExp(`\\b${nome}="([^"]*)"`).exec(attrs) || [])[1];
+
+function linhasHtml(texto) {
+  return (texto.match(/<tr[\s>][\s\S]*?<\/tr>/gi) || [])
+    .map(tr => (tr.match(/<t[dh][\s>][\s\S]*?<\/t[dh]>/gi) || []).map(semTags).join(';'));
+}
+
+// Número de série do Excel (dias desde 30/12/1899, ou 01/01/1904) para dd/mm/aaaa.
+function serialParaData(n, de1904) {
+  const d = new Date(Date.UTC(de1904 ? 1904 : 1899, de1904 ? 0 : 11, de1904 ? 1 : 30) + Math.round(n * 864e5));
+  return [d.getUTCDate(), d.getUTCMonth() + 1].map(x => String(x).padStart(2, '0')).join('/') + '/' + d.getUTCFullYear();
+}
+// Formatos de número que são datas: os embutidos 14–22 e 45–47, ou códigos com dia/ano.
+const ehFormatoData = (id, codigo) => (id >= 14 && id <= 22) || (id >= 45 && id <= 47)
+  || (codigo != null && /[dy]/i.test(codigo.replace(/"[^"]*"|\[[^\]]*\]|\\./g, '')));
+
+// ZIP (xlsx e ods): só o diretório central e descompressão "deflate" do próprio navegador.
+async function lerZip(b) {
+  let fim = -1;
+  for (let o = b.length - 22; o >= Math.max(0, b.length - 65557); o--) if (u32(b, o) === 0x06054b50) { fim = o; break; }
+  if (fim < 0) throw new Error('arquivo compactado danificado');
+  const arquivos = new Map();
+  for (let i = 0, o = u32(b, fim + 16); i < u16(b, fim + 10); i++) {
+    const metodo = u16(b, o + 10), tam = u32(b, o + 20), n = u16(b, o + 28), local = u32(b, o + 42);
+    const nome = new TextDecoder().decode(b.subarray(o + 46, o + 46 + n));
+    arquivos.set(nome, { metodo, ini: local + 30 + u16(b, local + 26) + u16(b, local + 28), tam });
+    o += 46 + n + u16(b, o + 30) + u16(b, o + 32);
+  }
+  return async nome => {
+    const a = arquivos.get(nome); if (!a) return null;
+    let d = b.subarray(a.ini, a.ini + a.tam);
+    if (a.metodo === 8) {
+      if (typeof DecompressionStream === 'undefined') throw new Error('este navegador não abre planilhas; atualize-o ou salve como CSV');
+      d = new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    } else if (a.metodo !== 0) throw new Error('compressão de planilha não suportada');
+    return new TextDecoder().decode(d);
+  };
+}
+
+async function lerZipPlanilha(b) {
+  const abrir = await lerZip(b);
+  const ods = await abrir('content.xml');
+  if (ods != null) return linhasOds(ods);
+  const livro = await abrir('xl/workbook.xml');
+  if (livro == null) throw new Error('não é uma planilha do Excel nem do LibreOffice');
+  return linhasXlsx(abrir, livro);
+}
+
+async function linhasXlsx(abrir, livro) {
+  const de1904 = /date1904="(1|true)"/.test(livro);
+  const comp = await abrir('xl/sharedStrings.xml') || '';
+  const textos = (comp.match(/<si>[\s\S]*?<\/si>/g) || []).map(si =>
+    desescapar((si.replace(/<rPh[\s\S]*?<\/rPh>/g, '').match(/<t[^>]*>[^<]*<\/t>/g) || []).map(t => t.replace(/<[^>]*>/g, '')).join('')));
+  const estilos = await abrir('xl/styles.xml') || '';
+  const codigos = new Map((estilos.match(/<numFmt [^>]*>/g) || []).map(f => [+atributo(f, 'numFmtId'), desescapar(atributo(f, 'formatCode') || '')]));
+  const xfs = ((/<cellXfs[\s\S]*?<\/cellXfs>/.exec(estilos) || [''])[0].match(/<xf [^>]*>/g) || [])
+    .map(x => { const id = +(atributo(x, 'numFmtId') || 0); return ehFormatoData(id, codigos.get(id)); });
+  // Abas na ordem do livro, pelo mapa de relações; se faltar, todas as worksheets.
+  const rels = await abrir('xl/_rels/workbook.xml.rels') || '';
+  const alvo = new Map((rels.match(/<Relationship [^>]*>/g) || []).map(r => [atributo(r, 'Id'), atributo(r, 'Target')]));
+  let caminhos = (livro.match(/<sheet [^>]*>/g) || []).map(s => alvo.get(atributo(s, 'r:id')))
+    .filter(Boolean).map(t => t.startsWith('/') ? t.slice(1) : 'xl/' + t.replace(/^\.\//, ''));
+  if (!caminhos.length) caminhos = ['xl/worksheets/sheet1.xml'];
+  const linhas = [];
+  for (const caminho of caminhos) {
+    const xml = await abrir(caminho); if (!xml) continue;
+    for (const [, corpo = ''] of xml.matchAll(/<row\b[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g)) {
+      const celulas = [];
+      for (const [, attrs, dentro = ''] of corpo.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const tipo = atributo(attrs, 't'), v = desescapar((/<v>([\s\S]*?)<\/v>/.exec(dentro) || [])[1] ?? '');
+        let valor;
+        if (tipo === 's') valor = textos[+v] ?? '';
+        else if (tipo === 'inlineStr') valor = semTags(dentro);
+        else if (tipo === 'n' || tipo == null) valor = v !== '' && xfs[+(atributo(attrs, 's') || 0)] ? serialParaData(+v, de1904) : v;
+        else valor = v;                                   // str, b, e, d (data em texto ISO)
+        celulas.push(valor);
+      }
+      linhas.push(celulas.join(';'));
+    }
+  }
+  return linhas;
+}
+
+function linhasOds(xml) {
+  const linhas = [];
+  for (const [, corpo = ''] of xml.matchAll(/<table:table-row\b[^>]*?(?:\/>|>([\s\S]*?)<\/table:table-row>)/g)) {
+    const celulas = [];
+    for (const [, attrs, dentro = ''] of corpo.matchAll(/<table:(?:covered-)?table-cell\b([^>]*?)(?:\/>|>([\s\S]*?)<\/table:(?:covered-)?table-cell>)/g)) {
+      const tipo = atributo(attrs, 'office:value-type');
+      let valor;
+      if (tipo === 'date') valor = (atributo(attrs, 'office:date-value') || '').slice(0, 10);
+      else if (tipo === 'float' || tipo === 'percentage' || tipo === 'currency') valor = atributo(attrs, 'office:value') || '';
+      else valor = (dentro.match(/<text:p\b[^>]*?(?:\/>|>[\s\S]*?<\/text:p>)/g) || [])
+        .map(p => semTags(p.replace(/<text:(s|tab|line-break)\b[^>]*\/>/g, ' '))).join(' ');
+      const vezes = valor ? Math.min(+(atributo(attrs, 'table:number-columns-repeated') || 1), 100) : 1;
+      for (let i = 0; i < vezes; i++) celulas.push(valor);
+    }
+    linhas.push(celulas.join(';'));
+  }
+  return linhas;
+}
+
+// Excel 97–2003 (.xls): arquivo composto (CFB) com o fluxo "Workbook" em registros BIFF8.
+function lerXls(b) {
+  const tam = 1 << u16(b, 30), tamMini = 1 << u16(b, 32), FIM = 0xfffffffa;
+  const setor = n => b.subarray((n + 1) * tam, (n + 2) * tam);
+  const difat = [];
+  for (let i = 0; i < 109; i++) { const v = u32(b, 76 + i * 4); if (v < FIM) difat.push(v); }
+  for (let s = u32(b, 68), n = u32(b, 72); n > 0 && s < FIM; n--) {
+    const d = setor(s);
+    for (let i = 0; i < tam / 4 - 1; i++) { const v = u32(d, i * 4); if (v < FIM) difat.push(v); }
+    s = u32(d, tam - 4);
+  }
+  const fat = [];
+  for (const s of difat) { const d = setor(s); for (let i = 0; i < tam / 4; i++) fat.push(u32(d, i * 4)); }
+  const juntar = (partes, t) => { const r = new Uint8Array(partes.length * t); partes.forEach((p, i) => r.set(p, i * t)); return r; };
+  const cadeia = (ini, tabela, ler, t) => {
+    const partes = [];
+    for (let s = ini; s < FIM && partes.length <= tabela.length; s = tabela[s]) partes.push(ler(s));
+    return juntar(partes, t);
+  };
+  const dir = cadeia(u32(b, 48), fat, setor, tam), entradas = [];
+  for (let o = 0; o + 128 <= dir.length; o += 128) {
+    const n = Math.max(0, u16(dir, o + 64) - 2);
+    entradas.push({ nome: String.fromCharCode(...new Uint16Array(dir.slice(o, o + n).buffer)), tipo: dir[o + 66], ini: u32(dir, o + 116), tam: u32(dir, o + 120) });
+  }
+  const fluxo = entradas.find(e => e.tipo === 2 && /^(workbook|book)$/i.test(e.nome));
+  if (!fluxo) throw new Error('planilha do Excel sem dados');
+  let dados;
+  if (fluxo.tam < u32(b, 56)) {                         // fluxo pequeno: fica no "mini stream"
+    const mini = cadeia(entradas[0].ini, fat, setor, tam), mfBytes = cadeia(u32(b, 60), fat, setor, tam);
+    const minifat = Array.from({ length: mfBytes.length / 4 }, (_, i) => u32(mfBytes, i * 4));
+    dados = cadeia(fluxo.ini, minifat, s => mini.subarray(s * tamMini, (s + 1) * tamMini), tamMini);
+  } else dados = cadeia(fluxo.ini, fat, setor, tam);
+  return linhasBiff(dados.subarray(0, fluxo.tam));
+}
+
+// Texto BIFF8: quantidade, opções (bit 0 = 2 bytes por letra, 4 = fonética, 8 = formatação) e letras.
+function textoBiff(d, o, quantidade = u16(d, o), ini = o + 2) {
+  const op = d[ini]; let p = ini + 1;
+  if (op & 8) p += 2; if (op & 4) p += 4;
+  let s = '';
+  for (let i = 0; i < quantidade && p < d.length; i++) s += String.fromCharCode(op & 1 ? u16(d, (p += 2) - 2) : d[p++]);
+  return s;
+}
+
+// Tabela de textos compartilhados, que pode continuar em registros CONTINUE (cada um recomeça
+// com um byte de opções quando corta um texto no meio).
+function tabelaTextos(partes) {
+  let p = 0, o = 8; const fora = () => { while (p < partes.length && o >= partes[p].length) { o -= partes[p].length; p++; } return p >= partes.length; };
+  const byte = () => fora() ? 0 : partes[p][o++];
+  const total = u32(partes[0], 4), r = [];
+  for (let k = 0; k < total && !fora(); k++) {
+    const n = byte() | byte() << 8; let op = byte(), extra = 0;
+    if (op & 8) extra += 4 * (byte() | byte() << 8);
+    if (op & 4) extra += (byte() | byte() << 8 | byte() << 16 | byte() << 24) >>> 0;
+    let s = '';
+    while (s.length < n) {
+      if (o >= partes[p].length) { p++; o = 0; if (p >= partes.length) break; op = partes[p][o++]; }
+      s += String.fromCharCode(op & 1 ? (o += 2, u16(partes[p], o - 2)) : partes[p][o++]);
+    }
+    o += extra; r.push(s);
+  }
+  return r;
+}
+
+function rk(v) {
+  let n;
+  if (v & 2) n = (v | 0) >> 2;
+  else { const dv = new DataView(new ArrayBuffer(8)); dv.setUint32(4, v & 0xfffffffc, true); n = dv.getFloat64(0, true); }
+  return v & 1 ? n / 100 : n;
+}
+
+function linhasBiff(b) {
+  const regs = [];
+  for (let o = 0; o + 4 <= b.length; o += 4 + u16(b, o + 2)) regs.push([u16(b, o), b.subarray(o + 4, o + 4 + u16(b, o + 2))]);
+  let textos = [], de1904 = false, aba = null;
+  const formatoXf = [], codigos = new Map(), abas = [];
+  const por = (r, c, v) => { (aba.get(r) || aba.set(r, []).get(r))[c] = v; };
+  const numero = (r, c, xf, n) => por(r, c, ehFormatoData(formatoXf[xf], codigos.get(formatoXf[xf])) ? serialParaData(n, de1904) : String(n));
+  regs.forEach(([t, d], i) => {
+    if (t === 0x0809) { aba = u16(d, 2) === 0x10 ? new Map() : null; if (aba) abas.push(aba); return; }
+    if (t === 0x002f) throw new Error('planilha protegida por senha');
+    if (t === 0x0022) de1904 = u16(d, 0) === 1;
+    else if (t === 0x041e) codigos.set(u16(d, 0), textoBiff(d, 2));
+    else if (t === 0x00e0) formatoXf.push(u16(d, 2));
+    else if (t === 0x00fc) { const partes = [d]; for (let j = i + 1; j < regs.length && regs[j][0] === 0x003c; j++) partes.push(regs[j][1]); textos = tabelaTextos(partes); }
+    if (!aba || d.length < 6) return;
+    const r = u16(d, 0), c = u16(d, 2), xf = u16(d, 4);
+    if (t === 0x00fd) por(r, c, textos[u32(d, 6)] ?? '');
+    else if (t === 0x0204) por(r, c, textoBiff(d, 6));
+    else if (t === 0x0203) numero(r, c, xf, f64(d, 6));
+    else if (t === 0x027e) numero(r, c, xf, rk(u32(d, 6)));
+    else if (t === 0x00bd) for (let k = 0; 4 + k * 6 + 6 <= d.length - 2; k++) numero(r, c + k, u16(d, 4 + k * 6), rk(u32(d, 6 + k * 6)));
+    else if (t === 0x0006) {
+      if (u16(d, 12) !== 0xffff) numero(r, c, xf, f64(d, 6));
+      else if (d[6] === 0) { const s = regs.slice(i + 1, i + 4).find(([tt]) => tt === 0x0207); if (s) por(r, c, textoBiff(s[1], 0)); }
+    }
+  });
+  return abas.flatMap(a => [...a.keys()].sort((x, y) => x - y).map(r => Array.from(a.get(r), v => v ?? '').join(';')));
 }
 
 
@@ -4543,27 +4808,40 @@ function desenharStats() {
 $('janela').addEventListener('change', desenharStats);
 
 // Dados
-function importarTexto(texto) {
-  const { concursos: lidos, invalidas, repetidos } = analisarCsv(texto);
+function importarLinhas(linhas, origem) {
+  const { concursos: lidos, invalidas, repetidos } = analisarLinhas(linhas);
   const avisos = [];
   if (invalidas.length) avisos.push(`${invalidas.length} linha${invalidas.length > 1 ? 's' : ''} ignorada${invalidas.length > 1 ? 's' : ''} por formato inválido (ex.: <code>${esc(invalidas[0].slice(0, 60))}</code>).`);
   if (repetidos.length) avisos.push(`Concurso repetido no arquivo com dezenas diferentes: ${repetidos.slice(0, 10).join(', ')}. Ficou a primeira versão.`);
   const atuais = new Map(concursos.map(c => [c.concurso, c]));
   const divergentes = lidos.filter(c => atuais.has(c.concurso) && atuais.get(c.concurso).dezenas.join() !== c.dezenas.join()).map(c => c.concurso);
   if (divergentes.length) avisos.push(`O arquivo traz dezenas diferentes das já guardadas nos concursos ${divergentes.slice(0, 10).join(', ')}. Mantive as já guardadas; confira a fonte.`);
+  const avisar = html => { $('impMsg').innerHTML = html + avisos.map(a => `<p class="hint warn">${a}</p>`).join(''); };
   if (!lidos.length) {
-    $('impMsg').innerHTML = `<p class="hint warn">Nenhuma linha válida encontrada. Use: concurso,data (dd/mm/aaaa),15 dezenas.</p>${avisos.map(a => `<p class="hint warn">${a}</p>`).join('')}`;
+    avisar(`<p class="hint warn">${esc(origem)}: nenhum resultado encontrado. Cada linha precisa ter o concurso, a data (dd/mm/aaaa) e as 15 dezenas.</p>`);
     return;
   }
   const novos = lidos.filter(c => !atuais.has(c.concurso));
   novos.forEach(c => extras.push(c)); guardar('lf.extras', extras); mesclar(novos);
   const falta = concursosFaltando(concursos);
   if (falta.length) avisos.push(`Faltam concursos no histórico: ${falta.slice(0, 15).join(', ')}${falta.length > 15 ? '…' : ''}.`);
+  const ate = lidos.at(-1);
+  if (!novos.length && ate.concurso <= ultimo().concurso)
+    avisos.unshift(`Nada novo: o arquivo vai só até o concurso ${ate.concurso} (${ate.data}), e o app já tem até o ${ultimo().concurso}. O arquivo está desatualizado; baixe de novo ou use a planilha da Caixa.`);
   infoBase(); desenharStats();
-  $('impMsg').innerHTML = `<p class="hint">${lidos.length} concursos lidos, ${novos.length} novos. Último: ${ultimo().concurso} (${ultimo().data}).</p>${avisos.map(a => `<p class="hint warn">${a}</p>`).join('')}`;
+  avisar(`<p class="hint">${esc(origem)}: ${lidos.length} concursos lidos, ${novos.length} novos. Último: ${ultimo().concurso} (${ultimo().data}).</p>`);
 }
-$('importar').addEventListener('click', () => importarTexto($('colar').value));
-$('arquivo').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(importarTexto); });
+async function importarArquivo(f) {
+  $('impMsg').innerHTML = `<p class="hint">Lendo ${esc(f.name)}…</p>`;
+  try { importarLinhas(await linhasDoArquivo(await f.arrayBuffer()), f.name); }
+  catch (e) { $('impMsg').innerHTML = `<p class="hint warn">Não consegui abrir ${esc(f.name)}: ${esc(e.message)}. Se for uma planilha, tente salvar como CSV.</p>`; }
+}
+$('importar').addEventListener('click', () => importarLinhas($('colar').value.split(/\r?\n/), 'Texto colado'));
+$('arquivo').addEventListener('change', e => { const f = e.target.files[0]; if (f) importarArquivo(f); e.target.value = ''; });
+const soltar = $('soltar');
+['dragenter', 'dragover'].forEach(t => soltar.addEventListener(t, e => { e.preventDefault(); soltar.classList.add('sobre'); }));
+['dragleave', 'drop'].forEach(t => soltar.addEventListener(t, () => soltar.classList.remove('sobre')));
+soltar.addEventListener('drop', e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) importarArquivo(f); });
 
 infoBase(); atualizarGrade(); desenharStats(); preencherFonte();
 </script>

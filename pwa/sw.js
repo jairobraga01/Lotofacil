@@ -1,5 +1,5 @@
 // Service worker: guarda o app no aparelho e o abre sem internet.
-const CACHE = 'lotofacil-3ac814e645';
+const CACHE = 'lotofacil-a8675ce4b3';
 const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARQUIVOS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(
