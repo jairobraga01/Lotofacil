@@ -21,3 +21,10 @@ const pagina = '<!doctype html>\n<html lang="pt-BR">\n<head>\n<meta charset="utf
   + html.replace(/<title>[\s\S]*?<\/style>/, m => m + '\n' + extra + '</head>\n<body>') + '\n' + reg + '\n</body>\n</html>\n';
 writeFileSync(new URL('pwa/index.html', import.meta.url), pagina);
 console.log('pwa/index.html');
+
+// Versão do cache do service worker = hash do app, para os aparelhos pegarem cada versão nova sozinhos.
+const { createHash } = await import('crypto');
+const versao = createHash('sha256').update(pagina).digest('hex').slice(0, 10);
+const sw = r('pwa/sw.js').replace(/const CACHE = '[^']*';/, `const CACHE = 'lotofacil-${versao}';`);
+writeFileSync(new URL('pwa/sw.js', import.meta.url), sw);
+console.log('pwa/sw.js cache', versao);

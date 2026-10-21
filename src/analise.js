@@ -69,3 +69,18 @@ export function filtrarJogos(jogos, { pares, repetidas, soma } = {}, anterior) {
     return dentro(p.pares, pares) && dentro(p.soma, soma) && (!repetidas || !anterior || dentro(p.repetidas, repetidas));
   });
 }
+
+/**
+ * Confere os jogos em todos os concursos de `de` a `ate`.
+ * `premios` dá o valor de cada faixa ({ 11: 7, ... }); faixa sem valor conta só a quantidade.
+ */
+export function conferirPeriodo(jogos, concursos, de, ate, premios = {}) {
+  const linhas = concursos.filter(c => c.concurso >= de && c.concurso <= ate).map(c => {
+    const { faixas } = conferirJogos(jogos, c);
+    const valor = Object.entries(faixas).reduce((s, [p, q]) => s + q * (premios[p] || 0), 0);
+    return { concurso: c.concurso, data: c.data, faixas, valor };
+  });
+  const faixas = { 11: 0, 12: 0, 13: 0, 14: 0, 15: 0 };
+  linhas.forEach(l => Object.keys(faixas).forEach(p => faixas[p] += l.faixas[p]));
+  return { linhas, faixas, valor: linhas.reduce((s, l) => s + l.valor, 0) };
+}
