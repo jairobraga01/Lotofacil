@@ -8,7 +8,7 @@ Arquivos: `index.html` (app e histórico), `manifest.webmanifest`, `sw.js` (func
 
 **Netlify Drop (mais rápido):** entre em app.netlify.com/drop, arraste esta pasta `pwa` para a página e anote o endereço gerado. Crie uma conta gratuita para o site não expirar.
 
-**GitHub Pages (automático):** no repositório, abra Settings > Pages e escolha Source: **GitHub Actions**. Cada push na `main` testa e publica esta pasta. O endereço será `https://jairobraga01.github.io/lotofacil/`. Em repositório privado, o GitHub Pages exige plano pago.
+**GitHub Pages (automático):** no repositório, abra Settings > Pages e escolha Source: **GitHub Actions**. Cada push na `main` testa e publica esta pasta. O endereço será `https://jairobraga01.github.io/Lotofacil/`. Em repositório privado, o GitHub Pages exige plano pago.
 
 ## Instalar
 
